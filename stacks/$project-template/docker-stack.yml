@@ -1,0 +1,7 @@
+version: "3.9"
+services:
+  my-container:
+    deploy:
+      labels:
+        - traefik.http.routers.my-container.rule=Host(`example.com`)
+        - traefik.http.services.my-container-service.loadbalancer.server.port=8080

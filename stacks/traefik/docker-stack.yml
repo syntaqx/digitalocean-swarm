@@ -1,0 +1,105 @@
+# docker network create --driver=overlay traefik-public
+# export NODE_ID=$(docker info -f '{{.Swarm.NodeID}}')
+# docker node update --label-add traefik-public.traefik-public-certificates=true $NODE_ID
+# export EMAIL=admin@syntaqx.io
+# export DOMAIN=syntaqx.io
+# export USERNAME=admin
+# export PASSWORD=password
+# export HASHED_PASSWORD=$(openssl passwd -apr1 $PASSWORD)
+# docker stack deploy -c ./stacks/traefik/docker-stack.yml traefik
+version: "3.9"
+services:
+
+  traefik:
+    image: traefik:v2.4
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      DO_AUTH_TOKEN:
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.traefik-public.traefik-public-certificates == true
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik-public
+        - traefik.constraint-label=traefik-public
+        - traefik.http.middlewares.admin-auth.basicauth.users=${USERNAME?Variable not set}:${HASHED_PASSWORD?Variable not set}
+        - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+        - traefik.http.middlewares.https-redirect.redirectscheme.permanent=true
+        - traefik.http.routers.traefik-public-http.rule=Host(`traefik.sys.${DOMAIN?Variable not set}`)
+        - traefik.http.routers.traefik-public-http.entrypoints=http
+        - traefik.http.routers.traefik-public-http.middlewares=https-redirect
+        - traefik.http.routers.traefik-public-https.rule=Host(`traefik.sys.${DOMAIN?Variable not set}`)
+        - traefik.http.routers.traefik-public-https.entrypoints=https
+        - traefik.http.routers.traefik-public-https.tls=true
+        - traefik.http.routers.traefik-public-https.service=api@internal
+        - traefik.http.routers.traefik-public-https.tls.certresolver=le
+        - traefik.http.routers.traefik-public-https.middlewares=admin-auth
+        - traefik.http.services.traefik-public.loadbalancer.server.port=8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-public-certificates:/certificates
+    command:
+      - --api
+      - --log
+      - --accesslog
+
+      - --providers.docker
+      - --providers.docker.constraints=Label(`traefik.constraint-label`, `traefik-public`)
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.swarmmode
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.proxyProtocol.insecure=true
+      - --entrypoints.https.address=:443
+      - --entrypoints.https.proxyProtocol.insecure=true
+
+      - --certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.le.acme.email=${EMAIL?Variable not set}
+      - --certificatesresolvers.le.acme.storage=/certificates/acme.json
+      - --certificatesresolvers.le.acme.dnschallenge.provider=digitalocean
+      - --certificatesresolvers.le.acme.dnschallenge=true
+
+      - --pilot.token=${PILOT_TOKEN}
+
+      - --metrics.datadog
+      - --metrics.datadog.address=datadog:8125
+
+      - --tracing.datadog
+      - --tracing.datadog.localAgentHostPort=datadog-agent:8126
+
+    networks:
+      - traefik-public
+
+volumes:
+  traefik-public-certificates:
+
+networks:
+  traefik-public:
+    external: true
+
+# services:
+
+#   reverse-proxy:
+#     image: traefik:v2.4
+#     command: --api.insecure=true --providers.docker
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock:ro
+#       - ./traefik.toml:/etc/traefik/traefik.toml
+
+#     deploy:
+#       placement:
+#         constraints:
+#           - node.role == manager
+#       labels:
+#         - "traefik.http.routers.dashboard.rule=Host(`traefik.example.com`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
+#         - "traefik.http.routers.dashboard.service=api@internal"
+#         - "traefik.http.routers.dashboard.middlewares=auth"
+#         - "traefik.http.middlewares.auth.basicauth.users=test:$$apr1$$H6uskkkW$$IgXLP6ewTrSuBkTrqE8wj/,test2:$$apr1$$d9hr9HBB$$4HxwgUir3HP4EsggP/QNo0"
+#         # Dummy service for Swarm port detection. The port can be any valid integer value.
+#         - "traefik.http.services.dummy-svc.loadbalancer.server.port=9999"
