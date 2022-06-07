@@ -5,12 +5,14 @@
 > continuously and automatically tested and deployed without needing to provide
 > open access.
 
+Personal infrastructure experiment with Docker Swarm on DigitalOcean
+
 ## Existing Integrations
 
-- Traefik Proxy
-- Traefik Pilot
-- Portainer
+- [Traefik Proxy](https://traefik.io/traefik/)
+- [Traefik Pilot](https://traefik.io/traefik-pilot/)
+- [Portainer](https://www.portainer.io/)
 
 ### Third-party Integrations
 
-- DataDog
+- [DataDog](https://www.datadoghq.com/)
